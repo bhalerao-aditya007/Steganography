@@ -1,0 +1,53 @@
+{
+  "success": true,
+  "exit_code": 0,
+  "session_id": "b05b016a",
+  "valid_shards_count": 32,
+  "required_shards_count": 24,
+  "missing_indices": [],
+  "stats": {
+    "rx": 36,
+    "bad_tag": 0,
+    "bad_syn": 0,
+    "bad_shard": 0,
+    "dup": 0,
+    "nacks": 3,
+    "seq_gaps": [
+      [
+        3,
+        5
+      ],
+      [
+        6,
+        8
+      ],
+      [
+        8,
+        10
+      ],
+      [
+        10,
+        13
+      ],
+      [
+        14,
+        16
+      ],
+      [
+        21,
+        23
+      ],
+      [
+        24,
+        27
+      ],
+      [
+        33,
+        36
+      ]
+    ]
+  },
+  "secret_sha256": "e18fe5afef37db308e698792f9025b49388a1ebe7b5c251874642836ce8cd590",
+  "decrypted_secret_len": 151,
+  "rounds_executed": 3
+}

@@ -1,171 +1,270 @@
-# TESSERA v2: Mirage — Deniable Image Steganography
+# TESSERA v3: Mirage — Networked Deniable Image Steganography
 
-**Data Privacy & Security Mini Project — Research Build, Evaluation, and Interactive Demonstration**
-
----
-
-## 📌 Executive Summary & Novelty Positioning
-
-Standard steganography attempts to minimize detection probability ($P_E$). However, once a forensic warden suspects an image, the steganographer faces a catastrophic failure: admitting the secret or facing coercion.
-
-**TESSERA v2: Mirage** introduces **detection-conditional plausible deniability** by transforming the embedding process:
-1. **The Circle Riddle Principle:** Eve asks *"which pixels changed?"* (the diameter answer) and receives a complete, self-consistent, dictionary-crackable answer; the **real secret** rides entirely on *"which way each change went"* ($+1$ or $-1$, the arc answer).
-2. **Zero Extra Evidence (Evidence Conservation):** Choosing the direction ($+1$ or $-1$) changes bit-2 of the modified pixel at **zero additional pixel modifications**, with identical change sets, change counts, and no $\pm 2$ artifacts.
-3. **Honey Decoy Trapping (M2):** The decoy message is encoded using a **Distribution-Transforming Encoder (Juels–Ristenpart Honey Encryption)**. *Every* wrong passphrase decodes to a valid, plausible meeting note, depriving Eve of a verification oracle.
-4. **Tile-Aligned Erasure Coding (C2):** The real secret is column-wise Reed–Solomon $(32, 24)$ coded across horizontal tile stripes. Bob recovers the secret bit-exactly even if up to 8 of 32 tiles are dropped or erased during transmission.
+**Data Privacy & Security Mini Project — Research Build, Real UDP Network Stack, Evaluation, and Viva Demonstration**
 
 ---
 
-## 🚀 How to Convince Your Teacher (Live Working Demonstrations)
+## 📌 1. Executive Summary & Architecture Overview
 
-You have **two complete, live, fully operational demo methods** that execute the actual algorithms with real inputs, real outputs, and real forensic proofs.
+**TESSERA v3** transitions the Mirage deniable steganography paradigm from an in-memory simulation into an authentic, fully networked UDP computer networks and security system. 
 
-### Method 1: The Live Terminal Pipeline (Recommended for Instant Raw Proof)
-Tell your teacher: *"Give me any custom secret sentence and tell me how many network packets (tiles) to drop."*
-Then execute:
+The architecture features three distinct operating system processes communicating over real UDP sockets:
+```
+┌────────────────────────┐         UDP :9998         ┌────────────────────────┐         UDP :9999         ┌────────────────────────┐
+│      Alice (Sender)    │ ────────────────────────> │   Impairment Router    │ ────────────────────────> │     Bob (Receiver)     │
+│   [cli/alice_sender]   │ <──────────────────────── │ [tools/router_impair]  │ <──────────────────────── │   [cli/bob_receiver]   │
+└────────────────────────┘          NACK / ACK       └────────────────────────┘          NACK / ACK       └────────────────────────┘
+                                                                  │
+                                                        Logs Ground Truth to
+                                                      CSV & Wireshark PCAP
+```
+
+### Key Technical Upgrades in v3:
+1. **Real UDP Transport Layer:** No synthetic array slicing. Datagrams traverse actual local UDP sockets (`:9998` and `:9999`) with high-resolution pacing (`precise_sleep()` Windows hybrid sleep/spin), 4 MB OS socket receive buffers, and resilience against Windows ICMP `ConnectionResetError` exceptions.
+2. **Deterministic & Stochastic Impairment Router:** `tools/router_impair.py` intercepts all traffic and injects:
+   - Bernoulli i.i.d. packet loss (`--loss`)
+   - Gilbert–Elliott 2-state Markov burst loss (`--ge-gb`, `--ge-bg`, `--ge-loss`)
+   - Deterministic arrival-index packet drops (`--drop-nth`)
+   - Heap-scheduled transmission delay and uniform jitter causing packet reordering (`--delay`, `--jitter`)
+   - Packet duplication (`--dup`)
+   - Single-bit payload corruption (`--corrupt`)
+   - Serialization delay and tail-drop queue bandwidth throttling (`--bw-kbps`, `--queue-bytes`)
+   - Live export to CSV (`router_log.csv`) and libpcap capture (`capture.pcap`)
+3. **Transport Modes:**
+   - **Open-Loop `fec` Mode:** Alice transmits 32 tile datagrams with RS(32,24) parity. If $\le 8$ tiles are lost, Bob recovers bit-exactly ($P_E = 0$). If $\ge 9$ tiles are lost, Bob fails closed with exit code 2.
+   - **Closed-Loop `hybrid` Mode:** Handshake (`SYN` / `SYN-ACK`), paced data flight, and selective NACK retransmission rounds. Turns loss into feedback repairs.
+4. **Wire Protocol v2:** Compact 20-byte binary header with keyed BLAKE2s-32 authentication tags, CRC32 integrity check, and fragmentation support. Wireshark dissection via `tools/tessera.lua`.
+5. **Cryptographic Hardening:**
+   - RFC 9106 Argon2id ($m=64\text{ MiB}, t=3, p=1$) with HKDF domain separation (`b"tessera/v3/enc"`, `b"tessera/v3/wire"`, `b"tessera/v3/H2"`, `b"tessera/v3/wh"`, `b"tessera/v3/pos"`).
+   - ChaCha20-Poly1305 AEAD with random 12-byte nonces and uniform 1,416-byte fixed padding (1,386-byte maximum secret capacity) preventing traffic analysis.
+6. **Steganographic Soundness:**
+   - Dry-pixel floor checks and GF(2) retry loop across tile padding counters.
+   - Pre-embedding Cover Gate checking saturated boundary pixels, flat blocks, and residual entropy.
+   - Formal Sign-Channel Lemma 1 mathematical verification ($v' \in \{v-1, v+1\}$ satisfies parity constraint while sign choice carries secret bit).
+
+---
+
+## ⚖️ 2. The Claims Ledger
+
+In academic defense, credibility requires knowing exactly what is claimed and what is not claimed:
+
+### What We Claim:
+1. **Real Network Impairment:** Genuine UDP packet loss, burst drops, and reordering injected by an intermediary router process between honest endpoints, verified by Wireshark captures and ground-truth CSV logs.
+2. **MDS Erasure Guarantee:** Any 24 of 32 tiles reconstruct the hidden secret bit-exactly, authenticated by ChaCha20-Poly1305.
+3. **Evidence Conservation:** The Mirage embedding layer introduces **zero** additional modified pixels beyond the decoy layer ($\Delta_{\text{diff}} = 0$, identical change sets, $100\% \in \{\pm 1\}$).
+4. **Empirical Steganalysis Baseline:** The decoy layer at $\alpha = 0.20$ is detectable by SPAM-686 feature extraction + linear classifiers ($P_E \approx 0.35$); the Mirage layer adds no *additional* statistical detectability ($\text{AUC} \approx 0.500$).
+5. **Identifiable Wire Framing:** The UDP framing is explicitly identifiable by design (`"ST"` magic, constant 8,212-byte data datagrams).
+
+### What We Do NOT Claim:
+- ❌ We do **not** claim undetectable steganography against high-order machine learning detectors.
+- ❌ We do **not** claim network-level covert channels (the wire protocol does not masquerade as DNS/RTP).
+- ❌ We do **not** claim survival against lossy JPEG compression, image resizing, or geometric transformation.
+- ❌ We do **not** claim forward secrecy (compromise of master passphrase reveals all recorded sessions).
+- ❌ We do **not** claim security if the adversary possesses the original uncompressed cover image.
+
+---
+
+## 🚀 3. Quickstart & One-Click Live Demo
+
+### Prerequisites
+- Python 3.11+
+- All dependencies installed in the local virtual environment (`.\.venv`):
 ```powershell
-.\.venv\Scripts\python.exe pipeline.py --secret "Prof Sharma: Research test message" --drop 7
+Set-Location "D:\B.Tech\Academics\SEM 5\Data Privacy & Security\small project\codebase"
+$env:PYTHONUTF8 = "1"
 ```
-**What your teacher sees live in the terminal:**
-1. **Live Key Derivation:** Argon2id master key + ChaCha20 AEAD key + H₂ matrix key.
-2. **Live Cryptography:** Plaintext encrypted, Poly1305 authentication tag generated, encoded into 32 column-wise Reed-Solomon shards.
-3. **Live Pixel Embedding:** Wet-paper GF(2) solver embeds into all 32 tiles in ~3.8 seconds, producing **`stego_output.png`**.
-4. **Live Evidence Conservation Proof:** Displays exact change count ($26,028$ pixels) and proves **0 pixels difference** between Decoy-only and Mirage.
-5. **Live Forensic Cracking (Eve):**
-   - Cracks the decoy password `sunshine123` in $0.16$ seconds and shows the decoy bait message.
-   - Tests wrong passwords (`password`, `letmein`, `admin123`) and proves each one outputs a coherent fake meeting note (the Honey Trap).
-   - Second-look audit proves **0 changes outside decoy positions** and **0 changes with $|d| \ge 2$**.
-6. **Live Network Erasure & Recovery:**
-   - Drops 7 random tile stripes (e.g. tiles 6, 9, 18, 20, 22, 24, 29).
-   - Bob's column Reed-Solomon engine reconstructs missing shards on-the-fly and decrypts the **EXACT** custom sentence you typed!
 
----
-
-### Method 2: The Interactive Web Studio
+### Option A: The One-Click Live Terminal Demo
+Runs Bob, the Impairment Router (with 15% random loss), and Alice in `hybrid` mode automatically:
 ```powershell
-.\.venv\Scripts\python.exe run_demo.py
+.\.venv\Scripts\python.exe run_v3_demo.py
 ```
-Open **`http://localhost:8501`** in your browser.
-- **Top Input Bar:** Type any secret message, upload any image, pick how many tiles to drop (e.g. 6 of 32).
-- Click **"⚡ EXECUTE LIVE PIPELINE"**.
-- View the **Live Impaired Transport Grid** (green = delivered, red = dropped).
-- View the **Pixel Inspector Table**: inspects actual pixel coordinates $(x, y)$, showing Cover value $v$, Stego value $v'$, difference $d \in \{+1, -1\}$, and bit-2 value!
-- Click **"Download Real Stego Image (PNG)"** to save and inspect the real stego image in any external viewer.
 
----
+**Artifacts Generated in `results/`:**
+- `stego_alice.png`: Steganographic image generated by Alice.
+- `received_stego.png`: Reconstructed image reconstructed by Bob (showing delivered tiles).
+- `router_log.csv`: Ground-truth log of every forwarded and dropped datagram.
+- `bob_report.json`: Bob's cryptographic and RS verification report.
+- `capture.pcap`: Raw network traffic capture of Leg 1 (`:9998`) and Leg 2 (`:9999`).
+- `run_manifest.json`: Sender parameters and cryptographic metadata.
 
-## 📂 Codebase Architecture
-
+### Option B: Offline PCAP Analysis of Wire Traffic
+Inspect the captured PCAP using the Scapy-based transport auditor:
+```powershell
+.\.venv\Scripts\python.exe tools\analyze_pcap.py results\capture.pcap
 ```
-codebase/
-├── tessera/
-│   ├── crypto/                 # Dual Argon2id, HKDF, ChaCha20-Poly1305, SHAKE-256 XOF, Whitening
-│   │   ├── kdf.py              # Master key derivation (light for decoy, reference for real)
-│   │   ├── aead.py             # Authenticated encryption (ChaCha20Poly1305)
-│   │   ├── xof.py              # SHAKE-256 PRF / keystream generators
-│   │   ├── keyed_perm.py       # Keyed tile pixel permutation P_t
-│   │   └── whiten.py           # Shard whitening to prevent structured bias
-│   ├── decoy/                  # Honey Encryption Subsystem
-│   │   ├── dte.py              # Distribution-Transforming Encoder (integer interval arithmetic)
-│   │   └── messages.py         # Categorical meeting note template & plausibility checker
-│   ├── embed/                  # Steganographic Embedding Engines
-│   │   ├── profile.py          # Embedding parameters (T=32, alpha_d=0.20, k=24, r=8)
-│   │   ├── gf2.py              # Gaussian elimination over GF(2) with uniform free variables
-│   │   ├── mirage.py           # Core Mirage embedder & sign-channel wet-paper solver
-│   │   ├── lsbm.py             # Single-layer Keyed LSB-Matching (Baseline B1)
-│   │   ├── naive_second_lsb.py # Naive 2nd LSB multi-secret steganography (Baseline B4)
-│   │   └── costs.py            # S-UNIWARD / HILL directional high-pass residual costs
-│   ├── ecc/                    # Error-Correction & Capacity Planning
-│   │   ├── shards.py           # Column-wise systematic Reed-Solomon(32, 24) coding
-│   │   └── planner.py          # Joint security-reliability optimization planner
-│   ├── stego_analysis/         # Forensic Steganalysis Attack Suite
-│   │   ├── chi2.py             # Westfeld-Pfitzmann Chi-Square attack on PoVs
-│   │   ├── rs_attack.py        # Fridrich-Goljan-Du Regular/Singular (RS) steganalysis
-│   │   ├── spam.py             # Subtractive Pixel Adjacency Matrix (343-D 2nd order Markov)
-│   │   ├── sign_tests.py       # Tailored sign contingency Chi2, fraction, runs tests
-│   │   ├── quant_est.py        # Sample Pair Analysis (SPA) quantitative change estimator
-│   │   └── detector.py         # Machine learning classifier (SPAM + Logistic Regression)
-│   ├── eve/                    # The Eve Attacker Ladder (E0 - E6)
-│   │   ├── e0_naive.py         # Blind scanner (Chi2 + RS + sequential extraction)
-│   │   ├── e1_tool.py          # StegSeek-style dictionary cracker & honey verification
-│   │   ├── e2_second_look.py   # Coercion audit: checks changes outside P_t and |d| >= 2
-│   │   ├── e3_distinguisher.py # Kerckhoffs distinguisher (AUC ~ 0.50 existence-hiding)
-│   │   └── e6_haystack.py      # Pooled batch steganographer ranking
-│   ├── net/                    # Network Transport Engine
-│   │   ├── packet.py           # Binary wire protocol with CRC32 verification
-│   │   ├── impair.py           # In-app loss, delay, and corruption simulator
-│   │   ├── rto.py              # RFC 6298 adaptive RTO estimator (Karn's rule)
-│   │   ├── rudp.py             # Sliding-window RUDP with SACK and AIMD congestion control
-│   │   ├── tcp.py              # TCP stream framing baseline
-│   │   └── session.py          # Alice (Sender) and Bob (Receiver) orchestrators
-│   ├── metrics/                # Verification & Statistical Evaluation
-│   │   ├── psnr_ssim.py        # PSNR, SSIM, MSE, changed bpp metrics
-│   │   ├── diffmap.py          # Difference maps & 3-way change set comparison
-│   │   └── stats.py            # Wilson score CIs, TOST equivalence test, capacity price
-│   └── ui/                     # Interactive Streamlit Demo
-│       ├── app.py              # 11-step interactive research demo application
-│       └── eve_console.py      # Isolated Eve forensic attack console
-├── tests/                      # Formal Unit & End-to-End Test Suite
-│   ├── test_e2e.py             # Full pipeline test with erasure injection
-│   ├── test_equivalence.py     # 32/32 tile change-set equality proof
-│   ├── test_honey.py           # Honey DTE plausibility on arbitrary seeds
-│   └── test_baselines.py       # Detection verification of B0 and B4
-├── figures/                    # Auto-generated publication-ready figures
-├── run_demo.py                 # Single-click demo launcher
-├── run_tests.py                # Automated test runner
-└── updated_tererra.md          # Full theoretical specification and blueprint
+**Sample Output:**
+```
+=================================================================
+           TESSERA PCAP OFFLINE TRANSPORT AUDIT REPORT           
+=================================================================
+Leg 1 (Alice -> Router): 39 datagrams  (35 DATA)
+Leg 2 (Router -> Bob)  : 28 datagrams
+Lost in Router         : 11 total, 9 DATA -> tiles [2, 5, 7, 9, 10, 13, 20, 23, 24]
+DATA Packet Loss Rate  : 25.7%
+Sequence Gaps on Leg 2 : [(3, 5), (6, 8), (8, 10), (10, 13), (14, 16), (21, 23), (24, 27), (33, 36)]
+DATA Payload Sizes     : {8212}  (constant sizes = traffic fingerprint)
+=================================================================
 ```
 
 ---
 
-## 🔬 Key Experimental Results (Empirically Verified)
+## 🖥️ 4. Live Viva Demonstration Setup (4-Pane Layout)
 
-| Metric | Target / Baseline | Mirage (Empirical) | Scientific Status |
-|---|---|---|---|
-| **Change-Set Equivalence** | 100% Identical | **32 / 32 tiles identical (0 discrepancy)** | **[VERIFIED]** |
-| **Modification Magnitudes** | $100\% \in \{\pm 1\}$ | **100.0% $\pm 1$ ($0$ changes with $\lvert d\rvert \ge 2$)** | **[VERIFIED]** |
-| **Sign $+1$ Fraction** | $0.500$ (Uniform) | **$0.496 \pm 0.005$** | **[VERIFIED]** |
-| **Sign vs $(x \bmod 4)$ Independence** | $p > 0.05$ | **$p = 0.233$** | **[VERIFIED]** |
-| **PSNR @ $\alpha_d = 0.20$** | $\ge 55.0\text{ dB}$ | **$58.14\text{ dB}$** | **[VERIFIED]** |
-| **Decoy vs Mirage Distinguisher** | $\text{AUC} \in [0.48, 0.52]$ | **$\text{AUC} = 0.500$ (Chance)** | **[VERIFIED]** |
-| **Cover vs Decoy (Bait Detection)** | $\text{AUC} > 0.50$ | **$\text{AUC} = 0.560$ (Bait Detected)** | **[VERIFIED]** |
-| **Decoy vs Naive 2nd LSB (B4)** | $\text{AUC} \gg 0.50$ | **$\text{AUC} = 0.600 - 0.760$ (Detectable)** | **[VERIFIED]** |
-| **Erasure Loss Tolerance** | Up to $r=8$ tiles | **100% bit-exact recovery at $\le 8$ tiles dropped** | **[VERIFIED]** |
-| **Honey Decoy Property** | No Oracle | **100% wrong keys decode to valid notes** | **[VERIFIED]** |
+During project evaluation or viva, demonstrate the three real processes and Wireshark running concurrently across 4 terminal/window panes:
+
+```
+┌──────────────────────────────────────┬──────────────────────────────────────┐
+│ Wireshark (Left Half)                │ Pane 1: Bob Receiver (:9999)         │
+│  Display Filter:                     │                                      │
+│  udp.port in {9998 9999}             ├──────────────────────────────────────┤
+│  Dissector: tools/tessera.lua        │ Pane 2: Impairment Router (:9998)    │
+│  Columns: No, Time, Src, Dst, Len    ├──────────────────────────────────────┤
+│                                      │ Pane 3: Alice Sender                 │
+└──────────────────────────────────────┴──────────────────────────────────────┘
+```
+
+### Step 1: Wireshark Lua Dissector Setup
+To view `TESSERA` packets parsed live in Wireshark:
+1. Open Wireshark $\to$ **Help** $\to$ **About Wireshark** $\to$ **Folders** $\to$ **Personal Lua Plugins**.
+2. Copy `tools\tessera.lua` into that folder (or append `dofile("D:/B.Tech/Academics/SEM 5/Data Privacy & Security/small project/codebase/tools/tessera.lua")` to `init.lua`).
+3. Press `Ctrl+Shift+L` in Wireshark to reload Lua plugins.
+4. Start capture on **Adapter for loopback traffic capture** with display filter:
+   ```wireshark
+   udp.port in {9998 9999}
+   ```
+
+### Step 2: Terminal Commands (Open 3 PowerShell Windows)
+
+#### Pane 1 — Bob Receiver (Start First)
+```powershell
+Set-Location "D:\B.Tech\Academics\SEM 5\Data Privacy & Security\small project\codebase"
+$env:PYTHONUTF8 = "1"
+$env:TESSERA_DECOY = "sunshine123"
+$env:TESSERA_REAL  = "correct horse battery staple 9!"
+
+.\.venv\Scripts\python.exe cli\bob_receiver.py --listen 9999 --mode auto --out results\received_stego.png --report results\bob_report.json --decoy-pass-env TESSERA_DECOY --real-pass-env TESSERA_REAL
+```
+
+#### Pane 2 — Impairment Router (Start Second)
+```powershell
+Set-Location "D:\B.Tech\Academics\SEM 5\Data Privacy & Security\small project\codebase"
+$env:PYTHONUTF8 = "1"
+
+.\.venv\Scripts\python.exe tools\router_impair.py --listen 9998 --to 127.0.0.1:9999 --loss 0.15 --seed 7 --log results\router_log.csv --pcap results\capture.pcap
+```
+
+#### Pane 3 — Alice Sender (Run When Prompted by Examiner)
+```powershell
+Set-Location "D:\B.Tech\Academics\SEM 5\Data Privacy & Security\small project\codebase"
+$env:PYTHONUTF8 = "1"
+$env:TESSERA_DECOY = "sunshine123"
+$env:TESSERA_REAL  = "correct horse battery staple 9!"
+
+.\.venv\Scripts\python.exe cli\alice_sender.py --dst 127.0.0.1:9998 --cover covers\textured_01.png --mode hybrid --secret "EXAMINER PHRASE: Real network loss recovered live via RS(32,24)!" --decoy-pass-env TESSERA_DECOY --real-pass-env TESSERA_REAL --save-stego results\stego_alice.png
+```
 
 ---
 
-## 🎤 10-Minute Presentation Script (For Project Evaluation)
+## 🧪 5. Testing & Verification Suites
 
-1. **0:00 - The Hook (The Circle Riddle):**
-   - Present the riddle: How can two points on a circle have distance equal to the diameter to one observer, but be adjacent points along the circumference to another?
-   - Connect to steganography: Eve asks *"which pixels changed?"* and recovers the decoy message. But the real secret lives in the *direction* ($+1$ or $-1$) of each change, costing zero extra modifications!
-2. **1:30 - Why Naive Hiding Fails:**
-   - Show Baseline B0: High PSNR ($51\text{ dB}$) but Chi-Square flags it instantly ($p < 0.001$).
-   - Show Baseline B4 (Prior Art): Embedding a second secret in bit-1 directly causes $\pm 2$ artifacts and changes outside decoy positions, caught by Eve ($E_2$).
-3. **3:00 - The Decoy Bait & Honey Encryption:**
-   - Eve runs dictionary attack on light Argon2id decoy passphrase (`sunshine123`).
-   - Eve cracks it in seconds and sees meeting note: `"MEET @ north gate, Fri 13:30, code cobalt"`.
-   - **The Twist:** Show that typing ANY wrong password (e.g. `letmein`, `password`) ALSO yields a perfectly plausible note! Eve has zero oracle to know if she has the true secret.
-4. **5:00 - The Reveal (Bob's Real Secret):**
-   - Bob supplies `pw_real`: ChaCha20-Poly1305 authenticates, and the confidential secret appears bit-exactly!
-5. **6:30 - Proof of Evidence Conservation:**
-   - Show Three-Way Difference Map: Cover vs Decoy vs Mirage.
-   - Point out: 0 pixel discrepancies. Sign $+1$ ratio is $0.496$, indistinguishable from random noise.
-6. **8:00 - Impaired Network Transport:**
-   - Slide network loss to $15\%-20\%$. Tiles arrive with holes (erasures).
-   - Show Bob recovering the secret *before* the image finish transmission using Reed-Solomon $(32, 24)$ erasure decoding.
-7. **9:30 - Honest Limitations & Viva Defense:**
-   - Disclose the capacity price: Deniability costs a $3.3\times$ factor in payload capacity.
-   - Disclose Mode L fragility: JPEG recompression disrupts spatial $\pm 1$ signs.
-   - Conclude: Mirage provides **provable evidence conservation and existence-hiding conditional on detection**.
+Execute the comprehensive test suite verifying the sign-channel lemma, packet parsing, FEC error/erasure boundaries, crypto KDF domain separation, cover gates, fuzzing robustness, and network scenarios:
+
+### Run All Test Suites
+```powershell
+.\.venv\Scripts\python.exe run_tests.py
+```
+
+### Run Specific Test Modules with Pytest
+```powershell
+# 1. Sign-Channel Lemma 1 Mathematical Proof:
+.\.venv\Scripts\python.exe -m pytest tests/test_lemma.py -v
+
+# 2. Binary Wire Protocol v2 Packing, Unpacking, and BLAKE2s/CRC32 Tags:
+.\.venv\Scripts\python.exe -m pytest tests/test_packet.py -v
+
+# 3. Column-Wise RS(32,24) Errors & Erasures (MDS Bound 2e + f <= 8):
+.\.venv\Scripts\python.exe -m pytest tests/test_fec.py -v
+
+# 4. RFC 9106 Argon2id, HKDF Domain Separation, and AEAD Padding:
+.\.venv\Scripts\python.exe -m pytest tests/test_crypto.py -v
+
+# 5. Pre-Embedding Cover Image Gate Checks:
+.\.venv\Scripts\python.exe -m pytest tests/test_cover_gate.py -v
+
+# 6. Receiver Hostile Fuzzing (1,000 Random Corrupted Datagrams):
+.\.venv\Scripts\python.exe -m pytest tests/test_receiver_fuzz.py -v
+
+# 7. Network Scenarios 1 to 6 over Live UDP Impairment Router:
+.\.venv\Scripts\python.exe -m pytest tests/test_scenarios.py -v
+
+# 8. Full End-to-End System Integration:
+.\.venv\Scripts\python.exe -m pytest tests/test_e2e_v3.py -v
+```
 
 ---
 
-## 🏆 Research Integrity Checklist
-- [x] All 32/32 tiles verified for exact change set equivalence.
-- [x] Honey DTE tested on 100+ random seeds with 100% syntactic plausibility.
-- [x] ChaCha20-Poly1305 AEAD tag prevents tampering and detects wrong keys.
-- [x] Reed-Solomon erasure decoding recovers secret with up to 8 dropped tiles.
-- [x] Interactive Streamlit research dashboard with live Eve console and impairment simulation.
-- [x] Clean, modular, production-ready codebase adhering to PEP 8 standards.
+## 📊 6. Evaluation Framework & Figures
+
+### 1. Steganalysis Frontier Evaluation
+Evaluates classification error ($P_E$) and AUC across 6 experimental arms ($C, L, M, R, P+, N-$) using 686-dimensional SPAM features and pair-aware dataset splits:
+```powershell
+.\.venv\Scripts\python.exe eval\stego_eval.py --quick
+```
+Outputs: `results/stego_eval.csv`
+
+### 2. Network Monte Carlo Loss Sweep
+Simulates packet loss rates from $0\%$ to $40\%$ across open-loop `fec` and closed-loop `hybrid` ARQ modes:
+```powershell
+.\.venv\Scripts\python.exe eval\net_eval.py --trials 50
+```
+Outputs: `results/net_eval.csv`
+
+### 3. Generate Publication Figures
+Generates publication-quality figures:
+```powershell
+.\.venv\Scripts\python.exe eval\plots.py
+```
+- `figures/v3_figure1_stego_frontier.png`: Payload vs. Detection Error ($P_E$) frontier across algorithms.
+- `figures/v3_figure2_loss_curves.png`: Empirical vs. Analytical failure curves ($P_{\text{fail}}$ vs. loss probability).
+
+---
+
+## 🛡️ 7. Fallback Artifacts (Viva Insurance)
+
+In case a live network demonstration is hindered by classroom network restrictions or firewall policies, pre-computed verified artifacts are packaged in `results/demo_fallback/`:
+- `results/demo_fallback/capture.pcap`: Valid Wireshark capture of an end-to-end Alice $\to$ Router $\to$ Bob run.
+- `results/demo_fallback/router_log.csv`: Ground-truth router drop and forward events.
+- `results/demo_fallback/stego_alice.png`: Transmitted steganographic image.
+- `results/demo_fallback/received_stego.png`: Received steganographic image reconstructed by Bob.
+- `results/demo_fallback/bob_report.json`: Cryptographic and Reed–Solomon verification output.
+
+To regenerate fresh fallback artifacts at any time:
+```powershell
+.\.venv\Scripts\python.exe run_v3_demo.py --out-dir results\demo_fallback
+```
+
+---
+
+## 🎯 8. Viva Defense Questions & Crisp Answers
+
+1. **Why UDP instead of TCP?**
+   *Answer:* TCP's built-in retransmissions and stream abstraction hide packet loss and introduce visible timing signatures on the wire. UDP exposes raw datagram boundaries, allowing us to implement, evaluate, and benchmark application-layer Reed–Solomon erasure coding and hybrid ARQ.
+2. **Isn't packet drop simulated by Alice simply not sending?**
+   *Answer:* In v3, Alice transmits 100% of the datagrams. An independent router process (`router_impair.py`) intercepts the packets on UDP port 9998, evaluates loss models (Bernoulli or Gilbert–Elliott), drops selected datagrams, and logs the ground truth to CSV. The dropped sequence numbers are verified on the wire via Wireshark.
+3. **What is the Reed–Solomon (32, 24) guarantee?**
+   *Answer:* It is a Maximum Distance Separable (MDS) code over $\text{GF}(256)$ with minimum distance $d_{\min} = n - k + 1 = 9$. It strictly guarantees bit-exact recovery for any pattern of up to $f \le 8$ erased shards, or any combination of $e$ errors and $f$ erasures satisfying $2e + f \le 8$.
+4. **What happens if 9 tiles are lost?**
+   *Answer:* In `fec` mode, the MDS bound is exceeded, and Bob safely fails closed with exit code 2 without outputting partial corruption. In `hybrid` mode, Bob transmits a NACK identifying missing indices, and Alice paces targeted repair datagrams.
+5. **Why column-wise Reed–Solomon?**
+   *Answer:* By arranging the 1,416-byte message into 24 rows of 59 bytes, each byte position forms an independent 32-byte codeword across all 32 tiles. A dropped tile corresponds to exactly one erasure across all 59 codewords at the identical index, maximizing decoding efficiency.
+6. **What is the Sign Channel?**
+   *Answer:* When a pixel must change parity to satisfy the decoy wet-paper equation, modifying it by $+1$ or $-1$ yields identical LSB parity but toggles the second least significant bit (bit-2). This direction choice is a free degree of freedom used to carry the real secret shard at zero additional pixel modifications.
+7. **Why is the real secret layer undetectable given the decoy?**
+   *Answer:* The Mirage embedding modifies the exact same set of pixel coordinates as the decoy layer ($\Delta_{\text{diff}} = 0$). Furthermore, the $+1/-1$ sign distribution is pseudo-randomized by SHAKE-256 whitening and HKDF keys, yielding a uniform $+1$ ratio of $0.500 \pm 0.005$ indistinguishable from random coin flips.
+8. **Why use RFC 9106 Argon2id?**
+   *Answer:* Argon2id provides memory-hard key derivation ($m=64\text{ MiB}, t=3, p=1$), providing resistance against GPU and ASIC parallel dictionary cracking.
+9. **What is the role of CRC32 if you already have Poly1305?**
+   *Answer:* CRC32 detects accidental network bit corruptions instantly at the link level and converts them into erasures for Reed–Solomon decoding. Poly1305 provides cryptographic authentication against active tampering.
+10. **Does TESSERA claim covert network traffic?**
+    *Answer:* No. The packet structure carries a clear 20-byte binary header with identifiable magic bytes (`"ST"`). We explicitly analyze traffic fingerprinting and claim application-level steganography and erasure resilience, not network steganography.

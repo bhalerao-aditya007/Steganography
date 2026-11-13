@@ -6,9 +6,23 @@ from ..decoy.dte import dte_decode
 from .profile import Profile
 from .gf2 import gf2_solve, rows_to_ints
 
+
+def verify_lemma1() -> bool:
+    """Verify that g(v-1) != g(v+1) for all v in [1, 254], where g(v) = (v >> 1) & 1.
+    Boundary values 0 and 255 have only one legal modification direction in [0, 255].
+    """
+    for v in range(1, 255):
+        g_minus = ((v - 1) >> 1) & 1
+        g_plus = ((v + 1) >> 1) & 1
+        if g_minus == g_plus:
+            return False
+    return True
+
+
 def H2_matrix(kh: bytes, t: int, r: int, n_d: int) -> np.ndarray:
     """Generate the dense r x n_d binary parity check matrix H2 for tile `t`."""
     return xof_bits(kh, "H2", t, n=r * n_d).reshape(r, n_d)
+
 
 def embed_tile(
     cover_tile: np.ndarray,
@@ -30,8 +44,8 @@ def embed_tile(
         t: Tile index (0 <= t < T)
         prof: Profile parameters
         kd: Decoy position key (k_pos)
-        kh: Real H2 matrix key (k_h2), required if mode == "mirage"
-        kw: Real whitening key (k_white), required if mode == "mirage"
+        kh: Real H2 matrix key (k_H2), required if mode == "mirage"
+        kw: Real whitening key (k_wh), required if mode == "mirage"
         hdr_ct_bits: 64-bit encrypted decoy seed as uint8 numpy array
         shard_bytes_arr: Whitened/unwhitened shard bytes to embed in sign channel (mode == "mirage")
         rng: Random generator for free variables and decoy sign choices
@@ -52,12 +66,12 @@ def embed_tile(
         if kh is None or kw is None or shard_bytes_arr is None:
             raise ValueError("kh, kw, and shard_bytes_arr are required for mode='mirage'")
         raw_m2 = np.frombuffer(shard_bytes_arr, dtype=np.uint8)
-        # Whitening
+        # Whitening: protects against structured/repeated shard patterns
         white_mask = np.frombuffer(xof(kw, "white", t, n=len(raw_m2)), dtype=np.uint8)
         m2 = np.unpackbits(raw_m2 ^ white_mask)
         H2 = H2_matrix(kh, t, prof.r_bits, n_d)
 
-    # Re-roll padding until there are sufficient dry positions
+    # Re-roll padding until there are sufficient dry positions and GF(2) system is solvable
     for ctr in range(max_rerolls):
         pad = xof_bits(kd, "pad", t, ctr, n=n_d - 64)
         bits = np.concatenate([hdr_ct_bits, pad]).astype(np.uint8)
@@ -67,35 +81,40 @@ def embed_tile(
 
         if mode != "mirage":
             break
-        if dry.sum() >= prof.r_bits + prof.margin:
-            break
-    else:
-        return None
 
-    y = x.copy()
-    # Default sign choices for decoy-only: random ±1; boundary: forced
-    sg = rng.choice([-1, 1], size=n_d)
-    sg[x[P] == 0] = 1
-    sg[x[P] == 255] = -1
+        if dry.sum() < prof.r_bits + prof.margin:
+            continue
 
-    if mode == "mirage":
-        # Cover bit-2 values: g(v) = (v >> 1) & 1
+        # Check solvability on this dry subset
+        # Default sign choices for boundary pixels (wet)
+        sg_test = rng.choice([-1, 1], size=n_d)
+        sg_test[x[P] == 0] = 1
+        sg_test[x[P] == 255] = -1
+
         b2c = (x[P] >> 1) & 1
         yb2 = b2c.copy()
         forced = chg & ~interior
-        yb2[forced] = (((x[P] + sg)[forced]) >> 1) & 1
+        yb2[forced] = (((x[P] + sg_test)[forced]) >> 1) & 1
 
         wet = ~dry
         w = (yb2 * wet).astype(np.uint8)
-        # Syndrome contribution of fixed (wet) positions
         syn_wet = (H2[:, wet].astype(np.int64) @ w[wet].astype(np.int64)) % 2
         rhs = m2 ^ syn_wet.astype(np.uint8)
 
         dcols = np.where(dry)[0]
         sol = gf2_solve(rows_to_ints(H2[:, dcols]), rhs.tolist(), len(dcols), rng)
-        if sol is None:
-            return None
+        if sol is not None:
+            break
+    else:
+        return None
 
+    y = x.copy()
+    # Default sign choices for decoy-only: random +/-1; boundary: forced
+    sg = rng.choice([-1, 1], size=n_d)
+    sg[x[P] == 0] = 1
+    sg[x[P] == 255] = -1
+
+    if mode == "mirage":
         # Choose modification direction (+1 or -1) on dry positions so that resulting bit-2 equals sol[k]
         for k, i in enumerate(dcols):
             v = x[P[i]]
@@ -107,6 +126,7 @@ def embed_tile(
     y[P[idx]] = x[P[idx]] + sg[idx]
     stego_tile = y.reshape(cover_tile.shape).astype(np.uint8)
     return stego_tile, int(chg.sum()), ctr
+
 
 def extract_tile(
     stego_tile: np.ndarray,
@@ -126,6 +146,7 @@ def extract_tile(
     sb = np.packbits(syn.astype(np.uint8))
     white_mask = np.frombuffer(xof(kw, "white", t, n=len(sb)), dtype=np.uint8)
     return bytes(np.frombuffer(sb, dtype=np.uint8) ^ white_mask)
+
 
 def decoy_peek(
     stego_tile: np.ndarray,

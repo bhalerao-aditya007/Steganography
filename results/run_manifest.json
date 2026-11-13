@@ -1,0 +1,26 @@
+{
+  "timestamp": 1794586175.7041333,
+  "git_commit": "unknown",
+  "python_version": "3.11.6",
+  "cover_sha256": "5cb24482a53416f99052258be2b1ee38cd31c559a70c8a8b321cba231b332e21",
+  "secret_len": 151,
+  "salt_hex": "3f8eac32e59427a291df11eadf49e871",
+  "transport_mode": "hybrid",
+  "pps": 500,
+  "mtu_safe": false,
+  "profile": {
+    "H": 512,
+    "W": 512,
+    "T": 32,
+    "alpha_d": 0.157,
+    "shard_bytes": 64,
+    "k": 24,
+    "n": 32,
+    "r_bits": 512,
+    "payload": 59,
+    "total_capacity": 1416,
+    "margin": 24,
+    "decoy": "lsbm",
+    "v3": true
+  }
+}
