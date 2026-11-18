@@ -3,15 +3,6 @@
 Starts Bob Receiver, UDP Impairment Router (with 15% packet loss), and Alice Sender.
 Demonstrates live RS(32,24) erasure recovery and ChaCha20-Poly1305 AEAD verification.
 """
-import os
-import subprocess
-import sys
-import time
-
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-
-
 import argparse
 import os
 import subprocess

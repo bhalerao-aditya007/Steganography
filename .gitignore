@@ -27,3 +27,6 @@ build/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Timestamped runtime demo artifacts
+results/*_[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_*

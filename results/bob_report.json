@@ -1,53 +1,28 @@
 {
+  "run_id": "20261118_121957",
   "success": true,
-  "exit_code": 0,
-  "session_id": "0f1c7abf",
-  "valid_shards_count": 32,
-  "required_shards_count": 24,
-  "missing_indices": [],
-  "stats": {
-    "rx": 37,
-    "bad_tag": 0,
-    "bad_syn": 0,
-    "bad_shard": 0,
-    "dup": 0,
-    "nacks": 4,
-    "seq_gaps": [
-      [
-        3,
-        5
-      ],
-      [
-        6,
-        8
-      ],
-      [
-        8,
-        10
-      ],
-      [
-        10,
-        13
-      ],
-      [
-        14,
-        16
-      ],
-      [
-        21,
-        23
-      ],
-      [
-        24,
-        27
-      ],
-      [
-        33,
-        36
-      ]
-    ]
+  "secret_length": 15,
+  "decoy_message": "MEET @ north gate, Fri 13:30, code cobalt",
+  "tiles_total": 32,
+  "tiles_delivered": 26,
+  "tiles_dropped": [
+    9,
+    12,
+    14,
+    26,
+    28,
+    30
+  ],
+  "psnr_db": 58.12805435378149,
+  "ssim": 0.9990856107846728,
+  "evidence_conservation": {
+    "decoy_changes": 26231,
+    "mirage_changes": 26231,
+    "discrepancy_count": 0
   },
-  "secret_sha256": "e18fe5afef37db308e698792f9025b49388a1ebe7b5c251874642836ce8cd590",
-  "decrypted_secret_len": 151,
-  "rounds_executed": 4
+  "artifacts": {
+    "stego_image": "D:\\B.Tech\\Academics\\SEM 5\\Data Privacy & Security\\small project\\codebase\\results\\stego_20261118_121957.png",
+    "received_stego": "D:\\B.Tech\\Academics\\SEM 5\\Data Privacy & Security\\small project\\codebase\\results\\received_stego_20261118_121957.png",
+    "diff_map": "D:\\B.Tech\\Academics\\SEM 5\\Data Privacy & Security\\small project\\codebase\\results\\diff_map_20261118_121957.png"
+  }
 }

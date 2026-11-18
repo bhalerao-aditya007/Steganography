@@ -107,6 +107,22 @@ DATA Payload Sizes     : {8212}  (constant sizes = traffic fingerprint)
 =================================================================
 ```
 
+### Option C: Interactive Professor / Viva Demonstration Console
+A dedicated single-prompt demonstration console showing dual-layer honey deflection vs. authentic confidential secret recovery:
+```powershell
+.\.venv\Scripts\python.exe demo_interactive.py
+```
+- Entering the decoy passphrase (or wrong password) triggers **Honey Decoy Deflection**, revealing plausible fake messages.
+- Entering the authentic passphrase performs **Reed-Solomon (32,24) Reconstruction** and **ChaCha20-Poly1305 Decryption**, recovering the real confidential secret.
+- Automatically updates canonical results in `results/` (`diff_map.png`, `packet_loss_diagnostic.png`, `stego_alice.png`, `received_stego.png`, `bob_report.json`).
+
+### Option D: Academic Project Report Generation
+Re-compile the comprehensive 12-chapter IEEE/academic project report:
+```powershell
+.\.venv\Scripts\python.exe generate_final_report.py
+```
+Outputs the complete report: `TESSERA_v3_Project_Report.docx` (10,000+ words, 21 structured tables, full curriculum mapping).
+
 ---
 
 ## 🖥️ 4. Live Viva Demonstration Setup (4-Pane Layout)

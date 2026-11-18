@@ -13,6 +13,7 @@ Exercises:
   - Wrong real passphrase rejection test
 """
 import os
+import random
 import subprocess
 import sys
 import threading
@@ -35,8 +36,8 @@ from tessera.net.transport import Sender, Receiver
 
 
 def test_tessera_v3_full_system_e2e():
-    port_router = 13500
-    port_bob = 13501
+    port_router = 13500 + random.randint(100, 4000)
+    port_bob = port_router + 1
 
     secret_text = b"VIVA EVALUATION: Confidential brief embedded into sign channel, survived 6 dropped tiles via RS(32,24)!"
     pw_decoy = "sunshine123"
@@ -98,7 +99,7 @@ def test_tessera_v3_full_system_e2e():
         "--drop-nth", drop_list,
         "--duration", "6.0",
     ])
-    time.sleep(0.15)
+    time.sleep(0.35)
 
     # 6. Start Bob Receiver
     def bob_derive(s):
@@ -130,7 +131,7 @@ def test_tessera_v3_full_system_e2e():
 
     t_bob = threading.Thread(target=bob_worker, daemon=True)
     t_bob.start()
-    time.sleep(0.05)
+    time.sleep(0.1)
 
     # 7. Start Alice Sender
     sender = Sender(
